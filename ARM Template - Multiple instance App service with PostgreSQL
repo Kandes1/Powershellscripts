@@ -1,0 +1,481 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "virtualNetwork_name": {
+            "defaultValue": "virtualnet-1aaa",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the VNet"
+            }
+        },
+        "serverFarm_name": {
+            "defaultValue": "ServerFarm1",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Web Farm"
+            }
+        },
+        "site_name": {
+            "type": "String",
+            "metadata": {
+                "description": "Web App name must be unique DNS name worldwide"
+            }
+        },
+        "WebApp_Count": {
+            "type": "Int",
+            "metadata": {
+                "description": "Web app creation number."
+            }
+        },
+        "virtualNetwork_CIDR": {
+            "defaultValue": "10.100.0.0/16",
+            "type": "String",
+            "metadata": {
+                "description": "CIDR of your VNet"
+            }
+        },
+        "subnet1_name": {
+            "defaultValue": "private",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Subnet"
+            }
+        },
+        "subnet2_name": {
+            "defaultValue": "integration",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the Subnet"
+            }
+        },
+        "subnet1_CIDR": {
+            "defaultValue": "10.100.1.0/24",
+            "type": "String",
+            "metadata": {
+                "description": "CIDR of your subnet"
+            }
+        },
+        "subnet2_CIDR": {
+            "defaultValue": "10.100.2.0/24",
+            "type": "String",
+            "metadata": {
+                "description": "CIDR of your subnet"
+            }
+        },
+        "location": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "String",
+            "metadata": {
+                "description": "Location for all resources."
+            }
+        },
+        "SKU_name": {
+            "defaultValue": "P1V2",
+            "type": "String",
+            "metadata": {
+                "description": "SKU name, must be minimum P1v2"
+            }
+        },
+        "SKU_tier": {
+            "defaultValue": "PremiumV2",
+            "type": "String",
+            "metadata": {
+                "description": "SKU tier, must be Premium"
+            }
+        },
+        "SKU_size": {
+            "defaultValue": "P1v2",
+            "type": "String",
+            "metadata": {
+                "description": "SKU size, must be minimum P1v2"
+            }
+        },
+        "SKU_family": {
+            "defaultValue": "P1v2",
+            "type": "String",
+            "metadata": {
+                "description": "SKU family, must be minimum P1v2"
+            }
+        },
+        "privateEndpoint_name": {
+            "defaultValue": "private-end",
+            "type": "String",
+            "metadata": {
+                "description": "Name of your Private Endpoint"
+            }
+        },
+        "privateLinkConnection_name": {
+            "defaultValue": "private-link",
+            "type": "String",
+            "metadata": {
+                "description": "Link name between your Private Endpoint and your Web App"
+            }
+        },
+        "privateDNSZone_name": {
+            "defaultValue": "privatelink.azurewebsites.net",
+            "type": "String",
+            "metadata": {
+                "description": "Name must be privatelink.azurewebsites.net"
+            }
+        },
+        "webapp_dns_name": {
+            "defaultValue": ".azurewebsites.net",
+            "type": "String",
+            "metadata": {
+                "description": "Name must be privatelink.azurewebsites.net"
+            }
+        },
+        "administratorLogin": {
+            "minLength": 1,
+            "type": "String",
+            "metadata": {
+                "description": "Database administrator login name"
+            }
+        },
+        "administratorLoginPassword": {
+            "minLength": 8,
+            "maxLength": 128,
+            "type": "SecureString",
+            "metadata": {
+                "description": "Database administrator password"
+            }
+        },
+        "databaseSkuCapacity": {
+            "defaultValue": 4,
+            "allowedValues": [
+                2,
+                4,
+                8,
+                16,
+                32
+            ],
+            "type": "Int",
+            "metadata": {
+                "description": "Azure database for PostgreSQL compute capacity in vCores (2,4,8,16,32)"
+            }
+        },
+        "databaseSkuName": {
+            "defaultValue": "GP_Gen5_4",
+            "allowedValues": [
+                "GP_Gen5_2",
+                "GP_Gen5_4",
+                "GP_Gen5_8",
+                "GP_Gen5_16",
+                "GP_Gen5_32"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Azure database for PostgreSQL sku name "
+            }
+        },
+        "databaseSkuSizeMB": {
+            "defaultValue": 51200,
+            "allowedValues": [
+                102400,
+                51200
+            ],
+            "type": "Int",
+            "metadata": {
+                "description": "Azure database for PostgreSQL Sku Size "
+            }
+        },
+        "databaseSkuTier": {
+            "defaultValue": "GeneralPurpose",
+            "allowedValues": [
+                "GeneralPurpose",
+                "MemoryOptimized",
+                "Basic"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Azure database for PostgreSQL pricing tier"
+            }
+        },
+        "postgresqlVersion": {
+            "defaultValue": "9.6",
+            "allowedValues": [
+                "9.5",
+                "9.6",
+                "10.10",
+                "11.5"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "PostgreSQL version"
+            }
+        },
+        "databaseskuFamily": {
+            "defaultValue": "Gen5",
+            "type": "String",
+            "metadata": {
+                "description": "Azure database for PostgreSQL sku family"
+            }
+        }
+    },
+    "variables": {
+        "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetwork_name'), parameters('subnet2_name'))]",
+        "databaseName": "[concat(parameters('site_name'), 'db')]",
+        "serverName": "[concat(parameters('site_name'), 'pgserver')]",
+        "hostingPlanName": "[concat(parameters('site_name'), 'serviceplan')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2020-04-01",
+            "name": "[parameters('virtualNetwork_name')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('virtualNetwork_CIDR')]"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2020-04-01",
+            "name": "[concat(parameters('virtualNetwork_name'),'/', parameters('subnet1_name'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetwork_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('subnet1_CIDR')]",
+                "privateEndpointNetworkPolicies": "Disabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2020-04-01",
+            "name": "[concat(parameters('virtualNetwork_name'),'/', parameters('subnet2_name'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetwork_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('subnet2_CIDR')]",
+                "privateEndpointNetworkPolicies": "Disabled",
+                "delegations": [
+                    {
+                        "name": "delegations",
+                        "properties": {
+                            "serviceName": "Microsoft.Web/serverFarms",
+                            "actions": [
+                                "Microsoft.Network/virtualNetworks/subnets/action"
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2019-08-01",
+            "name": "[parameters('serverFarm_name')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "[parameters('SKU_name')]",
+                "tier": "[parameters('SKU_tier')]",
+                "size": "[parameters('SKU_size')]",
+                "family": "[parameters('SKU_family')]",
+                "capacity": 1
+            },
+            "kind": "app"
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2019-08-01",
+            "name": "[concat(parameters('site_name'),copyIndex())]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('serverFarm_name'))]"
+            ],
+            "kind": "app",
+            "properties": {
+                "enabled": true,
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('serverFarm_name'))]",
+                "hostNameSslStates": [
+                    {
+                        "name": "[concat(parameters('site_name'),copyIndex(), parameters('webapp_dns_name'))]",
+                        "sslState": "Disabled",
+                        "hostType": "Standard"
+                    },
+                    {
+                        "name": "[concat(parameters('site_name'),copyIndex(), '.scm', parameters('webapp_dns_name'))]",
+                        "sslState": "Disabled",
+                        "hostType": "Repository"
+                    }
+                ]
+            },
+            "resources": [
+                {
+                    "type": "config",
+                    "apiVersion": "2018-02-01",
+                    "name": "virtualNetwork",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', concat(parameters('site_name'),copyIndex()))]",
+                        "[concat('Microsoft.Network/virtualNetworks/', parameters('virtualNetwork_name'))]"
+                    ],
+                    "properties": {
+                        "subnetResourceId": "[variables('subnetRef')]",
+                        "swiftSupported": true
+                    }
+                },
+                {
+                    "type": "config",
+                    "apiVersion": "2018-11-01",
+                    "name": "connectionstrings",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', concat(parameters('site_name') , copyIndex()))]"
+                    ],
+                    "properties": {
+                        "defaultConnection": {
+                            "value": "[concat('Database=', variables('databaseName'), ';Server=', variables('serverName'), '.postgres.database.azure.com;User Id=', parameters('administratorLogin'),'@', variables('serverName'),';Password=', parameters('administratorLoginPassword'))]",
+                            "type": "PostgreSQL"
+                        }
+                    }
+                }
+            ],
+            "copy": {
+                "name": "webapploop",
+                "count": "[parameters('WebApp_Count')]"
+            }
+        },
+        {
+            "type": "Microsoft.DBforPostgreSQL/servers",
+            "apiVersion": "2017-12-01",
+            "name": "[variables('serverName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "[parameters('databaseSkuName')]",
+                "tier": "[parameters('databaseSkuTier')]",
+                "capacity": "[parameters('databaseSkuCapacity')]",
+                "size": "[parameters('databaseSkuSizeMB')]",
+                "family": "[parameters('databaseskuFamily')]"
+            },
+            "properties": {
+                "version": "[parameters('postgresqlVersion')]",
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorLoginPassword')]",
+                "storageMB": "[parameters('databaseSkuSizeMB')]"
+            },
+            "resources": [
+                {
+                    "type": "firewallrules",
+                    "apiVersion": "2017-12-01",
+                    "name": "[concat(variables('serverName'),'firewall')]",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/servers', variables('serverName'))]"
+                    ],
+                    "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "255.255.255.255"
+                    }
+                },
+                {
+                    "type": "databases",
+                    "apiVersion": "2017-12-01",
+                    "name": "product",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/servers', variables('serverName'))]"
+                    ],
+                    "properties": {
+                        "charset": "utf8",
+                        "collation": "English_United States.1252"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Web/sites/hostNameBindings",
+            "apiVersion": "2019-08-01",
+            "name": "[concat(parameters('site_name'),copyIndex(), '/', parameters('site_name'),copyIndex(), parameters('webapp_dns_name'))]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', concat(parameters('site_name') , copyIndex()))]"
+            ],
+            "properties": {
+                "siteName": "[parameters('site_name')]",
+                "hostNameType": "Verified"
+            },
+            "copy": {
+                "name": "webapploop",
+                "count": "[parameters('WebApp_Count')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints",
+            "apiVersion": "2019-04-01",
+            "name": "[parameters('privateEndpoint_name')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetwork_name'), parameters('subnet1_name'))]",
+                "[resourceId('Microsoft.DBforPostgreSQL/servers', variables('serverName'))]"
+            ],
+            "properties": {
+                "subnet": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetwork_name'), parameters('subnet1_name'))]"
+                },
+                "privateLinkServiceConnections": [
+                    {
+                        "name": "[parameters('privateLinkConnection_name')]",
+                        "properties": {
+                            "privateLinkServiceId": "[resourceId('Microsoft.DBforPostgreSQL/servers', variables('serverName'))]",
+                            "groupIds": [
+                                "postgresqlServer"
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones",
+            "apiVersion": "2018-09-01",
+            "name": "[parameters('privateDNSZone_name')]",
+            "location": "global",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetwork_name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+            "apiVersion": "2018-09-01",
+            "name": "[concat(parameters('privateDNSZone_name'), '/', parameters('privateDNSZone_name'), '-link')]",
+            "location": "global",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', parameters('privateDNSZone_name'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetwork_name'))]"
+            ],
+            "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetwork_name'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+            "apiVersion": "2020-03-01",
+            "name": "[concat(parameters('privateEndpoint_name'),'/dnsgroupname')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', parameters('privateDNSZone_name'))]",
+                "[resourceId('Microsoft.Network/privateEndpoints' , parameters('privateEndpoint_name'))]"
+            ],
+            "properties": {
+                "privateDnsZoneConfigs": [
+                    {
+                        "name": "config1",
+                        "properties": {
+                            "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', parameters('privateDNSZone_name'))]"
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}
